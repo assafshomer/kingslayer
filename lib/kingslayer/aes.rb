@@ -30,17 +30,18 @@ module Kingslayer
 
     BUFFER_SIZE = 4096
 
-    attr_reader :password, :size, :cipher, :iter
+    attr_reader :password, :size, :cipher, :iter, :hexkey, :hexiv
 
     # Initialize with the password
     #
     # @param [String] password
     # @param [Integer] size
     # @param [String] mode
-    def initialize(password, size=256, mode="cbc")
+    def initialize(password, size=256, mode="cbc", iter=1)
       @password = password
+      @iter = iter
       @size = size
-      @mode = mode
+      @mode = mode      
       @cipher = OpenSSL::Cipher::Cipher.new("aes-#{size}-#{mode}")
     end
 
@@ -116,28 +117,28 @@ module Kingslayer
 
     private
 
-    def generate_salt(supplied_salt)
-      if supplied_salt
-        return supplied_salt.to_s[0,8].ljust(8,'.')
+      def generate_salt(supplied_salt)
+        if supplied_salt
+          return supplied_salt.to_s[0,8].ljust(8,'.')
+        end
+        s = ''
+        8.times {s << rand(255).chr}
+        s
       end
-      s = ''
-      8.times {s << rand(255).chr}
-      s
-    end
 
-    def setup_cipher(method, salt)
-      cipher.send(method)
-      cipher.pkcs5_keyivgen(password, salt, 1)
-    end
-
-    def copy_stream(in_stream, out_stream)
-      buf = ''
-      while in_stream.read(BUFFER_SIZE, buf)
-        out_stream << cipher.update(buf)
+      def setup_cipher(method, salt)
+        cipher.send(method)
+        cipher.pkcs5_keyivgen(password, salt, 1)
       end
-      out_stream << cipher.final
-      out_stream.flush
-    end
+
+      def copy_stream(in_stream, out_stream)
+        buf = ''
+        while in_stream.read(BUFFER_SIZE, buf)
+          out_stream << cipher.update(buf)
+        end
+        out_stream << cipher.final
+        out_stream.flush
+      end
 
   end
 end

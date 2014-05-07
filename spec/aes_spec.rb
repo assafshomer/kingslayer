@@ -6,11 +6,32 @@ describe "the aes cipher" do
   before do
     @cipher = Kingslayer::AES.new("password")
   end
+  subject { @cipher }
   
+  it { should respond_to :password }
+  it { should respond_to :size }
+  it { should respond_to :cipher }
+  it { should respond_to :iter }
+  it { should respond_to :hexkey }
+  it { should respond_to :hexiv }
+
+  it "should default to 1 iteration" do
+    @cipher.iter.should == 1  
+  end
+
+  describe "setup for encryption should generate non nil iv and key" do
+    let!(:secret_text) { "some funky secret text" } 
+    before { @cipher.e(secret_text) }
+    its(:hexkey) { should_not be_nil }
+    its(:hexiv) { should_not be_nil }
+  end
+    
   it "should encrypt text and be compatible with OpenSSL CLI" do
     secret_text = "Made with Gibberish"
     encrypted = @cipher.e(secret_text)
-    from_openssl = `echo "#{encrypted}" | openssl enc -d -aes-256-cbc -a -k password`
+    key = @cipher.hexkey
+    iv = @cipher.hexiv
+    from_openssl = `echo "#{encrypted}" | openssl enc -d -aes-256-cbc -a -K #{key} -iv #{iv}`
     from_openssl.should == secret_text
   end
 
