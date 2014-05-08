@@ -2,7 +2,7 @@ require 'spec_helper'
 require 'tempfile'
 
 describe "the aes cipher" do
-  let!(:secret_text) { 'Some funky secret text' }
+  let!(:secret_text) { 'Some funky secret text !@#%&*()' }
   before do
     @cipher = Kingslayer::AES.new("password")
   end
@@ -38,6 +38,12 @@ describe "the aes cipher" do
     @cipher.d(encrypted).should == secret_text
   end
 
+  describe "encrypt/decrypt should still work with iterations" do
+    let!(:strong) { Kingslayer::AES.new("password",100000) }
+    let!(:enc) { strong.e(secret_text) }
+    it { strong.d(enc).should == secret_text }
+  end
+
   # it "should encrypt file and be compatible with OpenSSL CLI" do
   #   source_file_path = "spec/fixtures/secret.txt"
   #   encrypted_file = Tempfile.new('secret.txt.enc')
@@ -59,6 +65,8 @@ describe "the aes cipher" do
     encrypted2 = @cipher.e(secret_text, {:salt => salt})
     encrypted1.should_not == encrypted2
   end
+
+
 
   # it "when supplied salt is too long, text should still encrypt/decrypt correctly" do
   #   salt = 'NaClNaClNaClNaClNaClNaClNaClNaClNaClNaCl'
