@@ -30,26 +30,26 @@ module Kingslayer
 
     BUFFER_SIZE = 4096
 
-    attr_reader :password, :size, :cipher, :iter, :hexkey, :hexiv
+    attr_reader :password, :cipher, :iter, :hexkey, :hexiv
 
     # Initialize with the password
     #
     # @param [String] password
     # @param [Integer] size
     # @param [String] mode
-    def initialize(password, size=256, mode="cbc", iter=1)
+    def initialize(password, iter=1)
       @password = password
       @iter = iter
-      @size = size
-      @mode = mode      
-      @cipher = OpenSSL::Cipher::Cipher.new("aes-#{size}-#{mode}")
+      @cipher = OpenSSL::Cipher::AES256.new('CBC')
     end
 
     def encrypt(data, opts={})
       salt = generate_salt(opts[:salt])
-      setup_cipher(:encrypt, salt)
+      key = generate_key(password,salt, iter)
+      iv = cipher.random_iv
+      setup_cipher(:encrypt, key, iv)
       e = cipher.update(data) + cipher.final
-      e = "Salted__#{salt}#{e}" #OpenSSL compatible
+      e = "Salted__#{salt}#{iv}#{e}"
       opts[:binary] ? e : Base64.encode64(e)
     end
     alias :enc :encrypt
@@ -59,9 +59,13 @@ module Kingslayer
       raise ArgumentError, 'Data is too short' unless data.length >= 16
       data = Base64.decode64(data) unless opts[:binary]
       salt = data[8..15]
-      data = data[16..-1]
-      setup_cipher(:decrypt, salt)
+      iv = data[16..31]
+      data = data[32..-1]
+      key = generate_key(password,salt, iter)
+      setup_cipher(:decrypt, key, iv)
       cipher.update(data) + cipher.final
+      # decrypted = cipher.update(data) + cipher.final
+      # decrypted[33..-1]
     end
     alias :dec :decrypt
     alias :d :decrypt
@@ -126,9 +130,24 @@ module Kingslayer
         s
       end
 
-      def setup_cipher(method, salt)
+      def generate_random_iv
+        s = ''
+        16.times {s << rand(255).chr}
+        s
+      end
+
+      def generate_key(password,salt, iter)
+        digest=OpenSSL::Digest::SHA256.new
+        len=digest.digest_length
+        OpenSSL::PKCS5.pbkdf2_hmac(password,salt,iter,len,digest)
+      end
+
+      def setup_cipher(method, key, iv)
         cipher.send(method)
-        cipher.pkcs5_keyivgen(password, salt, 1)
+        cipher.key = key
+        @hexkey = key.unpack('H*')[0]
+        cipher.iv = iv
+        @hexiv = iv.unpack('H*')[0]
       end
 
       def copy_stream(in_stream, out_stream)
