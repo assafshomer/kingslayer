@@ -52,7 +52,7 @@ describe "the aes cipher" do
     b=Time.now
     bar = weak.e(secret_text)
     c=Time.now
-    ((b-a)/(c-b)).should > 100
+    ((b-a)/(c-b)).should > 1000
   end
 
 

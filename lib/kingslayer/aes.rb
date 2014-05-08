@@ -32,11 +32,6 @@ module Kingslayer
 
     attr_reader :password, :cipher, :iter, :hexkey, :hexiv
 
-    # Initialize with the password
-    #
-    # @param [String] password
-    # @param [Integer] size
-    # @param [String] mode
     def initialize(password, iter=1)
       @password = password
       @iter = iter
@@ -64,8 +59,6 @@ module Kingslayer
       key = generate_key(password,salt, iter)
       setup_cipher(:decrypt, key, iv)
       cipher.update(data) + cipher.final
-      # decrypted = cipher.update(data) + cipher.final
-      # decrypted[33..-1]
     end
     alias :dec :decrypt
     alias :d :decrypt
@@ -127,12 +120,6 @@ module Kingslayer
         end
         s = ''
         8.times {s << rand(255).chr}
-        s
-      end
-
-      def generate_random_iv
-        s = ''
-        16.times {s << rand(255).chr}
         s
       end
 
