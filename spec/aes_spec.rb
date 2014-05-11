@@ -76,14 +76,37 @@ describe "the aes cipher" do
   end
 
   describe "file encryption/decryption should work with iterations" do
-    let!(:strong) { Kingslayer::AES.new("password",100000) }
+    let!(:strong) { Kingslayer::AES.new("password",100) }
     let!(:encrypted_file_path) { Tempfile.new('secret.txt.enc').path }
-    let!(:enc) { strong.ef(source_file_path,encrypted_file_path) }
     let!(:decrypted_file_path) { Tempfile.new('secret.txt.enc.dec').path }
     before do
+      strong.ef(source_file_path,encrypted_file_path)
       strong.df(encrypted_file_path, decrypted_file_path)
     end
     it { FileUtils.cmp(source_file_path,decrypted_file_path).should be_true }
+  end
+
+  describe "file encryption/decryption" do
+    let!(:strong) { Kingslayer::AES.new("password",10) }
+    let!(:wrong_itr) { Kingslayer::AES.new("password", 9) }
+    let!(:wrong_pwd) { Kingslayer::AES.new("passwOrd", 10) }
+    let!(:good_dec) { Kingslayer::AES.new("password",10) }
+    let!(:encrypted_file_path) { Tempfile.new('secret.txt.enc').path }
+    let!(:decrypted_file_path) { Tempfile.new('secret.txt.enc.dec').path }
+    let!(:decrypted_wrong_itr_file_path) { Tempfile.new('secret.txt.enc.dec2').path }
+    let!(:decrypted_wrong_pwd_file_path) { Tempfile.new('secret.txt.enc.dec3').path }
+    before do
+      strong.ef(source_file_path,encrypted_file_path)      
+    end
+    it "should not raise an error when using a well instantiated decryptor" do
+      expect {good_dec.df(encrypted_file_path, decrypted_file_path)}.not_to raise_error      
+    end    
+    it "should raise an error when decrypting with a KS instantiated with the wrong number of iterations" do
+      expect {wrong_itr.df(encrypted_file_path, decrypted_wrong_itr_file_path)}.to raise_error('bad decrypt')      
+    end
+    it "should raise an error when decrypting with a KS instantiated with the wrong pwd" do
+      expect {wrong_pwd.df(encrypted_file_path, decrypted_wrong_pwd_file_path)}.to raise_error('bad decrypt')      
+    end
   end
 
 
@@ -95,90 +118,51 @@ describe "the aes cipher" do
     `openssl aes-256-cbc -d -in #{encrypted_file_path} -out #{decrypted_file_path} -K #{@cipher.hexkey} -iv #{@cipher.hexiv} -a`
     clean = File.read(decrypted_file_path).chars.select(&:valid_encoding?).join
     secret_text = File.read(source_file_path)
-    start_position = clean.index(/#{secret_text}/)
+    regex = /#{Regexp.escape(secret_text)}/
+    start_position = clean.index(regex)
     File.write(clean_file_path,clean[start_position..-1])
     FileUtils.cmp(source_file_path, clean_file_path).should be_true
   end
 
-  it "when salt is not specified, encrypted text from repeated calls should not be the same" do
-    encrypted1 = @cipher.e(secret_text)
-    encrypted2 = @cipher.e(secret_text)
-    encrypted1.should_not == encrypted2
+  describe "encrypted text from repeated calls " do
+    let!(:encrypted1) { @cipher.e(secret_text) }
+    let!(:encrypted2) { @cipher.e(secret_text) }
+    let!(:encrypted3) { @cipher.e(secret_text, salt: 'foobar') }
+    let!(:encrypted4) { @cipher.e(secret_text, salt: 'foobar') }
+    it "should not be the same" do
+      encrypted1.should_not == encrypted2
+    end
+    it "should not be the same even if using the same salt (due to random IV)" do
+      encrypted3.should_not == encrypted4
+    end
   end
 
-  it "Even when salt is specified, encrypted text from repeated calls (with same salt) should not be the same due to random iv" do
-    salt = 'NaClNaCl'
+  it "when supplied salt is too long, text should still encrypt/decrypt correctly" do
+    salt = 'NaClNaClNaClNaClNaClNaClNaClNaClNaClNaCl'
     encrypted1 = @cipher.e(secret_text, {:salt => salt})
-    encrypted2 = @cipher.e(secret_text, {:salt => salt})
-    encrypted1.should_not == encrypted2
+    @cipher.d(encrypted1).should == secret_text
   end
 
+  it "when supplied salt is too short, text should still encrypt/decrypt correctly" do
+    salt = 'NaCl'
+    encrypted1 = @cipher.e(secret_text, {:salt => salt})
+    @cipher.d(encrypted1).should == secret_text
+  end
 
+  it "when number is supplied for salt, text should still encrypt/decrypt correctly" do
+    salt = 42
+    encrypted1 = @cipher.e(secret_text, {:salt => salt})
+    @cipher.d(encrypted1).should == secret_text
+  end
 
-  # it "when supplied salt is too long, text should still encrypt/decrypt correctly" do
-  #   salt = 'NaClNaClNaClNaClNaClNaClNaClNaClNaClNaCl'
-  #   encrypted1 = @cipher.e(secret_text, {:salt => salt})
-  #   @cipher.d(encrypted1).should == secret_text
-  # end
+  it "when idiotic value is supplied for salt, text should still encrypt/decrypt correctly" do
+    salt = {:whoknew => "I'm an idiot"}
+    encrypted1 = @cipher.e(secret_text, {:salt => salt})
+    @cipher.d(encrypted1).should == secret_text
+  end
 
-  # it "when supplied salt is too short, text should still encrypt/decrypt correctly" do
-  #   salt = 'NaCl'
-  #   encrypted1 = @cipher.e(secret_text, {:salt => salt})
-  #   @cipher.d(encrypted1).should == secret_text
-  # end
-
-  # it "when number is supplied for salt, text should still encrypt/decrypt correctly" do
-  #   salt = 42
-  #   encrypted1 = @cipher.e(secret_text, {:salt => salt})
-  #   @cipher.d(encrypted1).should == secret_text
-  # end
-
-  # it "when idiotic value is supplied for salt, text should still encrypt/decrypt correctly" do
-  #   salt = {:whoknew => "I'm an idiot"}
-  #   encrypted1 = @cipher.e(secret_text, {:salt => salt})
-  #   @cipher.d(encrypted1).should == secret_text
-  # end
-
-  # it "should decrypt base64 encoded data from the OpenSSL CLI" do
-  #   secret_text = "Made with Gibberish"
-  #   from_openssl = `echo #{secret_text} | openssl enc -aes-256-cbc -a -k password`
-  #   decrypted_text = @cipher.d(from_openssl).chomp
-  #   decrypted_text.should == secret_text
-  # end
-
-  # it "should decrypt file encrypted with OpenSSL CLI" do
-  #   source_file_path = "spec/fixtures/secret.txt"
-  #   encrypted_file = Tempfile.new('secret.txt.enc')
-  #   `openssl aes-256-cbc -salt -in #{source_file_path} -out #{encrypted_file.path} -k password`
-  #   decrypted_file = Tempfile.new('secret.txt')
-  #   @cipher.df(encrypted_file.path, decrypted_file.path)
-  #   FileUtils.cmp(source_file_path, decrypted_file.path).should == true
-  # end
-
-  # it "should throw correct exception when decryption string is too short" do
-  #   expect{@cipher.d("short")}.to raise_error(ArgumentError)
-  # end
-
-  # describe 'stream encryption' do
-
-  #   it 'encrypts a file' do
-  #     File.open('spec/openssl/plaintext.txt', 'rb') do |in_file|
-  #       File.open(Tempfile.new('gib'), 'wb') do |enc_file|
-  #         @cipher.encrypt_stream in_file, enc_file, salt: 'SOMESALT'
-  #         File.read(enc_file.path).should == File.read('spec/openssl/plaintext.aes')
-  #       end
-  #     end
-  #   end
-
-  #   it 'decrypts a file' do
-  #     File.open('spec/openssl/plaintext.aes', 'rb') do |in_file|
-  #       File.open(Tempfile.new('gib'), 'wb') do |dec_file|
-  #         @cipher.decrypt_stream in_file, dec_file
-  #         File.read(dec_file.path).should == File.read('spec/openssl/plaintext.txt')
-  #       end
-  #     end
-  #   end
-
-  # end
+  it "should throw correct exception when decryption string is too short" do
+    expect{@cipher.d("short")}.to raise_error(ArgumentError)
+  end
 
 end
