@@ -2,7 +2,7 @@ require 'spec_helper'
 require 'tempfile'
 
 describe "the aes cipher" do
-  let!(:secret_text) { 'Some funky secret 1234567890  66 text !@#%&*()' }
+  let!(:secret_text) { 'Some funky secret 1234567890  66 text !@#%&*()$ +*(_P)&*()*%^%$&%!~@$#~`' }
   let!(:source_file_path) { "spec/fixtures/secret.txt" }
   before do
     @cipher = Kingslayer::AES.new("password")
@@ -32,7 +32,8 @@ describe "the aes cipher" do
     from_openssl = `echo "#{encrypted}" | openssl enc -d -aes-256-cbc -a -K #{hexkey} -iv #{hexiv}`
     # from_openssl.chars.select(&:valid_encoding?).join.should =~ /#{secret_text}/
     clean = from_openssl.chars.select(&:valid_encoding?).join
-    start_position = clean.index(/#{secret_text}/)
+    regex = /#{Regexp.escape(secret_text)}/
+    start_position = clean.index(regex)    
     clean[start_position..-1].should == secret_text
   end
 
