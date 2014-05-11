@@ -3,6 +3,7 @@ require 'tempfile'
 
 describe "the aes cipher" do
   let!(:secret_text) { 'Some funky secret 1234567890  66 text !@#%&*()' }
+  let!(:source_file_path) { "spec/fixtures/secret.txt" }
   before do
     @cipher = Kingslayer::AES.new("password")
   end
@@ -24,13 +25,15 @@ describe "the aes cipher" do
     its(:hexiv) { should_not be_nil }
   end
 
-  it "should encrypt text and be compatible with OpenSSL CLI" do
+  it "should be compatible with OpenSSL upto initial garbage" do
     encrypted = @cipher.e(secret_text)
     hexkey = @cipher.hexkey
     hexiv = @cipher.hexiv
     from_openssl = `echo "#{encrypted}" | openssl enc -d -aes-256-cbc -a -K #{hexkey} -iv #{hexiv}`
-    from_openssl.chars.select(&:valid_encoding?).join.should =~ /#{secret_text}/
-    # from_openssl.should =~ /#{secret_text}/ 
+    # from_openssl.chars.select(&:valid_encoding?).join.should =~ /#{secret_text}/
+    clean = from_openssl.chars.select(&:valid_encoding?).join
+    start_position = clean.index(/#{secret_text}/)
+    clean[start_position..-1].should == secret_text
   end
 
   it "should encrypt/decrypt text correctly" do
@@ -38,10 +41,17 @@ describe "the aes cipher" do
     @cipher.d(encrypted).should == secret_text
   end
 
-  describe "encrypt/decrypt should still work with iterations" do
+  describe "text encryption/decryptioin should work with iterations" do
     let!(:strong) { Kingslayer::AES.new("password",100000) }
     let!(:enc) { strong.e(secret_text) }
     it { strong.d(enc).should == secret_text }
+  end
+
+  describe "text encryption/decryptioin should work with different instances" do
+    let!(:encryptor) { Kingslayer::AES.new("foobar",10) }
+    let!(:decryptor) { Kingslayer::AES.new("foobar",10) }
+    let!(:enc) { encryptor.e(secret_text) }
+    it { decryptor.d(enc).should == secret_text }
   end
 
   it "adding iterations should make things slower" do
@@ -55,15 +65,40 @@ describe "the aes cipher" do
     ((b-a)/(c-b)).should > 1000
   end
 
+  describe "file encryption/decryption should work" do
+    let!(:encrypted_file_path) { Tempfile.new('secret.txt.enc').path }
+    let!(:decrypted_file_path) { Tempfile.new('secret.txt.enc.dec').path }
+    before do
+      @cipher.ef(source_file_path, encrypted_file_path)
+      @cipher.df(encrypted_file_path, decrypted_file_path)
+    end
+    it { FileUtils.cmp(source_file_path,decrypted_file_path).should be_true }
+  end
 
-  # it "should encrypt file and be compatible with OpenSSL CLI" do
-  #   source_file_path = "spec/fixtures/secret.txt"
-  #   encrypted_file = Tempfile.new('secret.txt.enc')
-  #   @cipher.ef(source_file_path, encrypted_file.path)
-  #   decrypted_file = Tempfile.new('secret.txt')
-  #   `openssl aes-256-cbc -d -in #{encrypted_file.path} -out #{decrypted_file.path} -k password`
-  #   FileUtils.cmp(source_file_path, decrypted_file.path).should be_true
-  # end
+  describe "file encryption/decryption should work with iterations" do
+    let!(:strong) { Kingslayer::AES.new("password",100000) }
+    let!(:encrypted_file_path) { Tempfile.new('secret.txt.enc').path }
+    let!(:enc) { strong.ef(source_file_path,encrypted_file_path) }
+    let!(:decrypted_file_path) { Tempfile.new('secret.txt.enc.dec').path }
+    before do
+      strong.df(encrypted_file_path, decrypted_file_path)
+    end
+    it { FileUtils.cmp(source_file_path,decrypted_file_path).should be_true }
+  end
+
+
+  it "should encrypt file and be compatible with OpenSSL upto initial garbage" do    
+    encrypted_file_path = Tempfile.new('secret.txt.enc').path
+    @cipher.ef(source_file_path, encrypted_file_path)
+    decrypted_file_path = Tempfile.new('secret.txt.enc.dec').path
+    clean_file_path = Tempfile.new('clean.dec').path
+    `openssl aes-256-cbc -d -in #{encrypted_file_path} -out #{decrypted_file_path} -K #{@cipher.hexkey} -iv #{@cipher.hexiv} -a`
+    clean = File.read(decrypted_file_path).chars.select(&:valid_encoding?).join
+    secret_text = File.read(source_file_path)
+    start_position = clean.index(/#{secret_text}/)
+    File.write(clean_file_path,clean[start_position..-1])
+    FileUtils.cmp(source_file_path, clean_file_path).should be_true
+  end
 
   it "when salt is not specified, encrypted text from repeated calls should not be the same" do
     encrypted1 = @cipher.e(secret_text)
