@@ -1,26 +1,37 @@
 module Kingslayer
+  
   #   Handles AES encryption and decryption in a way that is compatible
-  #   with OpenSSL.
+  #   with OpenSSL (up to some initia garbage I have some diffculty getting rid of)
   #
-  #   Defaults to 256-bit CBC encryption, ideally you should leave it
-  #   this way
+  # ### Default Encryption
   #
-  # ## Basic Usage
-  #
-  # ### Encrypting
-  #
-  #     cipher = Kingslayer::AES.new('p4ssw0rd')
-  #     cipher.encrypt("some secret text")
-  #     #=> "U2FsdGVkX1/D7z2azGmmQELbMNJV/n9T/9j2iBPy2AM=\n"
+  #     cipher = Kingslayer::AES.new('Pa$$woRd')
+  #     cipher.encrypt("my special $ecret teXt")
+  #     #=> "U2FsdGVkX18sPH4adGVDkRAIF9UNk8DPMWwSC8N+oFBVJtXPt7GFbF5r7/9c\nDTnEAVjmjcsKEPep1xpEnOLRlw==\n"
   #     cipher.encrypt_file("secret.txt", "secret.txt.enc")
   #
-  # ### Decrypting
+  # ### Default Decryption
   #
-  #     cipher = Kingslayer::AES.new('p4ssw0rd')
-  #     cipher.decrypt(""U2FsdGVkX1/D7z2azGmmQELbMNJV/n9T/9j2iBPy2AM=\n"")
-  #     #=> "some secret text"
+  #     cipher = Kingslayer::AES.new('Pa$$woRd')
+  #     cipher.decrypt("U2FsdGVkX18sPH4adGVDkRAIF9UNk8DPMWwSC8N+oFBVJtXPt7GFbF5r7/9c\nDTnEAVjmjcsKEPep1xpEnOLRlw==\n")
+  #     #=> "my special $ecret teXt"
   #     cipher.decrypt_file("secret.txt.enc", "secret.txt.enc.dec")
   #
+  # ### Encryption with iterations
+  #
+  #     cipher = Kingslayer::AES.new('Pa$$woRd',1000)
+  #     cipher.encrypt("my special $ecret teXt")
+  #     #=> "U2FsdGVkX1+o6zcg3dyerj221VE91FGxE7S2Y0o0BP1Ay3jyItPextTJ3fpz\nF41iHkEwEdHAfzaYLBTJKs/JzQ==\n"
+  #     cipher.encrypt_file("secret.txt", "secret.txt.enc")
+  #
+  # ### Decryption with iterations
+  #
+  #     cipher = Kingslayer::AES.new('Pa$$woRd',1000)
+  #     cipher.decrypt("U2FsdGVkX1+o6zcg3dyerj221VE91FGxE7S2Y0o0BP1Ay3jyItPextTJ3fpz\nF41iHkEwEdHAfzaYLBTJKs/JzQ==\n")
+  #     #=> "my special $ecret teXt"
+  #     cipher.decrypt_file("secret.txt.enc", "secret.txt.enc.dec")
+
+
   class AES
 
     attr_reader :password, :cipher, :iter, :hexkey, :hexiv

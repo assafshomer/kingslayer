@@ -29,7 +29,7 @@ describe "the aes cipher" do
     encrypted = @cipher.e(secret_text)
     hexkey = @cipher.hexkey
     hexiv = @cipher.hexiv
-    from_openssl = `echo "#{encrypted}" | openssl enc -d -aes-256-cbc -a -K #{hexkey} -iv #{hexiv}`
+    from_openssl = `echo "#{encrypted}" | openssl aes-256-cbc -d -K #{hexkey} -iv #{hexiv} -a`
     # from_openssl.chars.select(&:valid_encoding?).join.should =~ /#{secret_text}/
     clean = from_openssl.chars.select(&:valid_encoding?).join
     regex = /#{Regexp.escape(secret_text)}/
